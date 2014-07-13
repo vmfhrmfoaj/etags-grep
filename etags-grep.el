@@ -8,53 +8,60 @@
 ;; along with this program; if not, write to the Free Software
 ;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+(require 'cl)
 (require 'dash)
 
-(defvar etags-grep/buf-name "*etags-grep*")
-
 
+;;;###autoload
 (defun etags-grep/find-tags (tag)
   (interactive (find-tag-interactive "Find tag: "))
-  (let ((tags-info (etags-grep/generate-matched-tags-info tag)))
-    (cond ((= (length tags-info) 0)
+  (etags-grep/find-tags-regex (concat "\\<" tag "\\>")))
+
+(defun etags-grep/find-tags-regex (tag-regex)
+  (let* ((tag-files (etags-grep/tag-files))
+         (tag-infos (etags-grep/matched-tag-infos tag-files tag-regex)))
+    (cond ((= (length tag-infos) 0)
            (error "There is no tag to match"))
-          ((= (length tags-info) 1)
-           (etags-grep/goto-first-tag tags-info))
-          ((> (length tags-info) 1)
-           (etags-grep/grep-mode etags-grep/buf-name)
-           (etags-grep/insert-tags etags-grep/buf-name tags-info)))))
-
-(defun etags-grep/generate-matched-tags-info (tag)
-  "Generate a matched tags info table"
-  (let* ((tag-template "^\\(.*\\<%s\\>\\(\\s(\\|;\\)?\\)\^?\\(\\(.+\\)\^A\\)?\\([0-9]+\\),[0-9]+")
-         (tag-regex (format tag-template tag))
-         matched-tags-info)
-    (dolist (tag-file (etags-grep/tag-files))
-      (setq matched-tags-info (append matched-tags-info
-                                      (etags-grep/generate-matched-tags-info-
-                                       tag-file tag))))
-    matched-tags-info))
-
-(defun etags-grep/generate-matched-tags-info- (tag-file tag)
-  (let (tags-info)
-    (-when-let (tag-buf (get-file-buffer tag-file))
-      (set-buffer tag-buf)
-      (goto-char (point-min))
-      (while (re-search-forward tag-regex nil t)
-        (let* ((tag      (match-string-no-properties 1))
-               (file     (etags-grep/get-file-name))
-               (line-num (string-to-number (match-string-no-properties 5)))
-               (meta     (match-string-no-properties 4))
-               (tag-info (etags-grep/set-info
-                          tag-file tag file line-num meta)))
-          (add-to-list 'tags-info tag-info t))))
-    tags-info))
+          ((= (length tag-infos) 1)
+           (etags-grep/goto-first-tag tag-infos))
+          ((> (length tag-infos) 1)
+           (etags-grep/insert-tags (etags-grep/create-buffer "*etags-grep*")
+                                   tag-files
+                                   tag-infos)))
+    tag-infos))
 
 (defun etags-grep/tag-files ()
   (eval-when-compile (require 'etags))
   (mapcar 'tags-expand-table-name tags-table-list))
 
-(defun etags-grep/get-file-name ()
+(defun etags-grep/matched-tag-infos (tag-files tag-regex)
+  "Generate a matched tags info table"
+  (let* ((tag-template "^\\(.*%s\\(\\s(\\|;\\)?\\)\^?\\(\\(.+\\)\^A\\)?\\([0-9]+\\),[0-9]+")
+         (tag-regex (format tag-template tag-regex))
+         matched-tag-infos)
+    (dolist (tag-file tag-files)
+      (setq matched-tag-infos
+            (append matched-tag-infos
+                    (etags-grep/matched-tag-infos- tag-file
+                                                   tag-regex))))
+    matched-tag-infos))
+
+(defun etags-grep/matched-tag-infos- (tag-file tag-regex)
+  (let (tag-infos)
+    (-when-let (tag-buf (get-file-buffer tag-file))
+      (set-buffer tag-buf)
+      (goto-char (point-min))
+      (while (re-search-forward tag-regex nil t)
+        (let* ((tag-str  (match-string-no-properties 1))
+               (file     (etags-grep/file-name-cur-tag))
+               (line-num (match-string-no-properties 5))
+               (meta     (match-string-no-properties 4))
+               (tag-info (etags-grep/set-info
+                          tag-file tag-str file line-num meta)))
+          (add-to-list 'tag-infos tag-info t))))
+    tag-infos))
+
+(defun etags-grep/file-name-cur-tag ()
   (save-match-data
     (save-excursion
       (backward-page)
@@ -63,10 +70,10 @@
       (re-search-forward "^\\(.+\\),"))
     (match-string-no-properties 1)))
 
-(defun etags-grep/goto-first-tag (tags-info)
-  (let* ((tag-info (first tags-info))
-         (file     (etags-grep/get-info 'file tag-info))
-         (line-num (etags-grep/get-info 'line-num tag-info)))
+(defun etags-grep/goto-first-tag (tag-infos)
+  (let* ((tag-info (first tag-infos))
+         (file     (etags-grep/info 'file tag-info))
+         (line-num (string-to-number (etags-grep/info 'line-num tag-info))))
     (etags-grep/goto-line-of-file file line-num)))
 
 (defun etags-grep/goto-line-of-file (file line &optional buf-display-fn)
@@ -76,41 +83,60 @@
       (funcall buf-display-fn (find-file-noselect file))))
   (goto-line line))
 
-(defun etags-grep/grep-mode (buf-name)
+(defun etags-grep/create-buffer (buf-name)
   (-when-let (buf (get-buffer buf-name))
     (kill-buffer buf))
   (with-current-buffer (get-buffer-create buf-name)
-    (eval-when-compile (require 'grep))
     (grep-mode)
     (goto-char (point-min)))
-  (pop-to-buffer etags-grep/buf-name))
+  (pop-to-buffer buf-name))
 
-(defun etags-grep/insert-tags (buf-name tags-info)
-  (with-current-buffer (get-buffer-create buf-name)
-    (let ((buffer-read-only nil))
-      (setq default-directory
-            (file-name-directory (etags-grep/get-info
-                                  'tag-file (first tags-info))))
+(defun etags-grep/insert-tags (buf tag-files tag-infos)
+  (with-current-buffer buf
+    (setq default-directory (etags-grep/tags-default-directory tag-files))
+    (let ((buffer-read-only nil)
+          (def-dir-lst (split-string default-directory "/")))
+      (insert (etags-grep/mode-header))
+      (dolist (tag-info tag-infos)
+        (let* ((tag-file    (etags-grep/info 'tag-file tag-info))
+               (tag-dir-lst (split-string (file-name-directory tag-file) "/"))
+               (dir-lst     (set-difference tag-dir-lst
+                                            def-dir-lst
+                                            :test 'string-equal))
+               (file-prefix-lst (mapcar (lambda (s) (concat s "/")) dir-lst))
+               (file-prefix (when dir-lst (apply 'concat file-prefix-lst)))
+               (file     (etags-grep/info 'file     tag-info))
+               (line-num (etags-grep/info 'line-num tag-info))
+               (tag-str  (etags-grep/info 'tag      tag-info)))
+          (insert (concat "./" file-prefix file ":" line-num ": " tag-str "\n"))
+          )))))
 
-      (insert
-       (format "-*- mode: grep; ""default-directory: \"%s\" -*-\n\n"
-               default-directory))
-      (insert (format "Find tag: \"%s\"\n" tag))
-      (dolist (tag-info tags-info)
-        (insert (format "./%s:" (etags-grep/get-info 'file tag-info)))
-        (insert (format "%d: "  (etags-grep/get-info 'line-num tag-info)))
-        (insert (format "%s\n"  (etags-grep/get-info 'tag tag-info)))))))
+(defun etags-grep/mode-header ()
+  (concat
+   "-*- mode: grep; default-directory: \"" default-directory "\" -*-\n\n"
+   "Find tag: \"" (if tag tag tag-regex) "\"\n"))
+
+(defun etags-grep/tags-default-directory (tag-files)
+  (let* (base-dir-lst)
+    (dolist (tag-file tag-files)
+      (setq base-dir-lst
+            (if base-dir-lst
+                (reverse (intersection base-dir-lst
+                                       (split-string tag-file "/")
+                                       :test 'string-equal))
+              (split-string (file-name-directory tag-file) "/"))))
+    (apply 'concat (mapcar (lambda (s) (concat s "/")) base-dir-lst))))
 
 
-(defun etags-grep/set-info (tag-file tag file line-num meta)
+(defun etags-grep/set-info (tag-file tag-str file line-num meta)
   (list (etags-grep/info-element 'tag-file tag-file)
-        (etags-grep/info-element 'tag      tag)
+        (etags-grep/info-element 'tag      tag-str)
         (etags-grep/info-element 'file     file)
         (etags-grep/info-element 'line-num line-num)
         (etags-grep/info-element 'meta     meta)))
 
 (defun etags-grep/info-element (k v) (list k v))
-(defun etags-grep/get-info (k alist) (second (assoc k alist)))
+(defun etags-grep/info (k alist) (second (assoc k alist)))
 
 
 (provide 'etags-grep)
