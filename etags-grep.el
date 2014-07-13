@@ -25,10 +25,9 @@
           ((= (length tag-infos) 1)
            (etags-grep/goto-first-tag tag-infos))
           ((> (length tag-infos) 1)
-           (etags-grep/insert-tags (etags-grep/create-buffer "*etags-grep*")
-                                   tag-files
-                                   tag-infos)))
-    tag-infos))
+           (pop-to-buffer (etags-grep/create-buffer "*etags-grep*"))
+           (etags-grep/insert-tags tag-files tag-infos)))
+  tag-infos))
 
 (defun etags-grep/tag-files ()
   (eval-when-compile (require 'etags))
@@ -88,28 +87,27 @@
     (kill-buffer buf))
   (with-current-buffer (get-buffer-create buf-name)
     (grep-mode)
-    (goto-char (point-min)))
-  (pop-to-buffer buf-name))
+    (goto-char (point-min))
+    (current-buffer)))
 
-(defun etags-grep/insert-tags (buf tag-files tag-infos)
-  (with-current-buffer buf
-    (setq default-directory (etags-grep/tags-default-directory tag-files))
-    (let ((buffer-read-only nil)
-          (def-dir-lst (split-string default-directory "/")))
-      (insert (etags-grep/mode-header))
-      (dolist (tag-info tag-infos)
-        (let* ((tag-file    (etags-grep/info 'tag-file tag-info))
-               (tag-dir-lst (split-string (file-name-directory tag-file) "/"))
-               (dir-lst     (set-difference tag-dir-lst
-                                            def-dir-lst
-                                            :test 'string-equal))
-               (file-prefix-lst (mapcar (lambda (s) (concat s "/")) dir-lst))
-               (file-prefix (when dir-lst (apply 'concat file-prefix-lst)))
-               (file     (etags-grep/info 'file     tag-info))
-               (line-num (etags-grep/info 'line-num tag-info))
-               (tag-str  (etags-grep/info 'tag      tag-info)))
-          (insert (concat "./" file-prefix file ":" line-num ": " tag-str "\n"))
-          )))))
+(defun etags-grep/insert-tags (tag-files tag-infos)
+  (setq default-directory (etags-grep/tags-default-directory tag-files))
+  (let ((buffer-read-only nil)
+        (def-dir-lst (split-string default-directory "/")))
+    (insert (etags-grep/mode-header))
+    (dolist (tag-info tag-infos)
+      (let* ((tag-file    (etags-grep/info 'tag-file tag-info))
+             (tag-dir-lst (split-string (file-name-directory tag-file) "/"))
+             (dir-lst     (set-difference tag-dir-lst
+                                          def-dir-lst
+                                          :test 'string-equal))
+             (file-prefix-lst (mapcar (lambda (s) (concat s "/")) dir-lst))
+             (file-prefix (when dir-lst (apply 'concat file-prefix-lst)))
+             (file     (etags-grep/info 'file     tag-info))
+             (line-num (etags-grep/info 'line-num tag-info))
+             (tag-str  (etags-grep/info 'tag      tag-info)))
+        (insert (concat "./" file-prefix file ":" line-num ": " tag-str "\n"))))
+    ))
 
 (defun etags-grep/mode-header ()
   (concat
