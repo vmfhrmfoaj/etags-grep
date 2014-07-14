@@ -39,7 +39,7 @@
 
 (defun etags-grep/matched-tag-infos (tags-base-dir tag-files tag-regex)
   "Generate a matched tags info table"
-  (let* ((tag-template "^\\(.*%s\\(\\s(\\|;\\)?\\)\^?\\(\\(.+\\)\^A\\)?\\([0-9]+\\),[0-9]+")
+  (let* ((tag-template "^\\(.*%s\\(\\s-\\|\\s(\\|;\\).*\\)\^?\\(\\(.+\\)\^A\\)?\\([0-9]+\\),[0-9]+")
          (tag-regex (format tag-template tag-regex))
          matched-tag-infos)
     (dolist (tag-file tag-files)
