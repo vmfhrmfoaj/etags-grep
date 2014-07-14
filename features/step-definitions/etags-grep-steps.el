@@ -17,15 +17,15 @@
     (with-current-buffer (window-buffer (selected-window))
       (assert (buffer-file-name) nil
               "\"%s\" buffer has no associated file" (current-buffer))
-      (let ((line-num (string-to-number line-num))
-            (cur-line (line-number-at-pos (point)))
+      (let ((line-num     (string-to-number line-num))
+            (cur-line-num (line-number-at-pos (point)))
             (cur-file (file-name-nondirectory (buffer-file-name))))
         (assert (equal cur-file file) nil
-                "Expected opened \"%s\" but was \"%s\"" cur-file file)
+                "Expected opened \"%s\" but was \"%s\"" file cur-file)
 
-        (assert (equal cur-line line-num) nil
+        (assert (equal cur-line-num line-num) nil
                 "Expected to place at line %d but was line %d"
-                line-num cur-line)))))
+                line-num cur-line-num)))))
 
 (Then "^I should show new window$"
   (lambda ()
