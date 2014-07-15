@@ -63,12 +63,9 @@
       (set-buffer tag-buf)
       (goto-char (point-min))
       (while (re-search-forward tag-regex nil t)
-        (let* ((tag-str (match-string-no-properties 1))
-               (file-1 (etags-grep/file-name-cur-tag))
-               (file   (if (or (file-name-absolute-p file-1)
-                               (null dir))
-                           file-1
-                         (concat dir file-1)))
+        (let* ((tag-str  (match-string-no-properties 1))
+               (file-1   (etags-grep/file-name-cur-tag))
+               (file     (etags-grep/new-path dir file-1))
                (line-num (match-string-no-properties 5))
                (meta     (match-string-no-properties 4))
                (tag-info (etags-grep/set-info
@@ -88,9 +85,7 @@
 (defun etags-grep/goto-first-tag (tags-base-dir tag-infos)
   (let* ((tag-info (first tag-infos))
          (file-1   (etags-grep/info 'file tag-info))
-         (file     (if (file-name-absolute-p file-1)
-                       file-1
-                     (concat tags-base-dir file-1)))
+         (file     (etags-grep/new-path tags-base-dir file-1))
          (line-num (string-to-number (etags-grep/info 'line-num tag-info))))
     (etags-grep/goto-line-of-file file line-num)))
 
@@ -136,6 +131,9 @@
     (apply 'concat (mapcar (lambda (s) (concat s "/")) base-dir-lst))))
 
 
+(defun etags-grep/new-path (dir file)
+  (if (file-name-absolute-p file) file (concat dir file)))
+
 (defun etags-grep/set-info (tag-file tag-str file line-num meta)
   (list (etags-grep/info-element 'tag-file tag-file)
         (etags-grep/info-element 'tag      tag-str)
