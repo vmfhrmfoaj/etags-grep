@@ -116,8 +116,8 @@
              (file     (etags-grep/info 'file     tag-info))
              (line-num (etags-grep/info 'line-num tag-info))
              (tag-str  (etags-grep/info 'tag      tag-info)))
-        (insert (concat "./" file ":" line-num ": " tag-str "\n"))))
-    ))
+        (insert (concat (unless (file-name-absolute-p file) "./") file ":"
+                        line-num ": " tag-str "\n"))))))
 
 (defun etags-grep/mode-header ()
   (concat
