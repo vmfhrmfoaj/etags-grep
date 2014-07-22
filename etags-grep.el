@@ -11,10 +11,14 @@
 (require 'cl)
 (require 'dash)
 
+(defvar etags-grep/a-start-marker nil
+  "A position when calling the `find-tags'")
+
 
 ;;;###autoload
 (defun etags-grep/find-tags (tag)
   (interactive (find-tag-interactive "Find tag: "))
+  (setq etags-grep/a-start-marker (point-marker))
   (etags-grep/find-tags-regex (concat "\\<" tag "\\>")))
 
 (defun etags-grep/find-tags-regex (tag-regex)
@@ -26,6 +30,8 @@
     (cond ((= (length tag-infos) 0)
            (error "There is no tag to match"))
           ((= (length tag-infos) 1)
+           (etags-grep/insert-marker-to-etags-marker-ring
+            etags-grep/a-start-marker)
            (etags-grep/goto-first-tag tags-base-dir tag-infos))
           ((> (length tag-infos) 1)
            (pop-to-buffer (etags-grep/create-buffer "*etags-grep*"))
@@ -94,6 +100,10 @@
       (find-file file)
     (funcall buf-display-fn (find-file-noselect file)))
   (goto-line line))
+
+(defun etags-grep/insert-marker-to-etags-marker-ring (marker)
+  (eval-when-compile (require 'etags))
+  (ring-insert find-tag-marker-ring marker))
 
 (defun etags-grep/create-buffer (buf-name)
   (-when-let (buf (get-buffer buf-name))
