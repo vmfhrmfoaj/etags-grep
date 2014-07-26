@@ -35,7 +35,7 @@
            (etags-grep/goto-first-tag tags-base-dir tags-info))
           ((> (length tags-info) 1)
            (pop-to-buffer (etags-grep/create-buffer "*etags-grep*"))
-           (setq default-directory tags-base-dir)
+           (setq default-directory (abbreviate-file-name tags-base-dir))
            (etags-grep/insert-tags tags-info)))
   tags-info))
 
@@ -112,6 +112,7 @@
     (kill-buffer buf))
   (with-current-buffer (get-buffer-create buf-name)
     (grep-mode)
+    (run-hooks 'grep-setup-hook)
     (goto-char (point-min))
     (current-buffer)))
 
@@ -124,12 +125,12 @@
              (line-num (etags-grep/info 'line-num tag-info))
              (tag-str  (etags-grep/info 'tag      tag-info)))
         (insert (concat (unless (file-name-absolute-p file) "./") file ":"
-                        line-num ": " tag-str "\n"))))))
+                        line-num ":" tag-str "\n"))))))
 
 (defun etags-grep/mode-header ()
   (concat
    "-*- mode: grep; default-directory: \"" default-directory "\" -*-\n\n"
-   "Find tag: \"" (if tag tag tag-regex) "\"\n"))
+   "Find tag: \"" (if tag tag tag-regex) "\"\n\n"))
 
 (defun etags-grep/tags-default-directory (tag-files)
   (let* (base-dir-lst)
