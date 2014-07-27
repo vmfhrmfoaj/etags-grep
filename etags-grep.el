@@ -77,15 +77,16 @@
     (-when-let (tag-buf (get-file-buffer tag-file))
       (with-current-buffer tag-buf
         (goto-char (point-min))
-        (while (re-search-forward tag-regex nil t)
-          (let* ((tag-str  (match-string-no-properties 1))
-                 (file-1   (etags-grep/file-name-cur-tag))
-                 (file     (etags-grep/new-path dir file-1))
-                 (line-num (match-string-no-properties 5))
-                 (meta     (match-string-no-properties 4))
-                 (tag-info (etags-grep/set-info
-                            tag-file tag-str file line-num meta)))
-            (add-to-list 'tags-info tag-info t)))))
+        (let ((case-fold-search nil))
+          (while (re-search-forward etag-regex nil t)
+            (let* ((tag-str  (match-string-no-properties 1))
+                   (file-1   (etags-grep/file-name-cur-tag))
+                   (file     (etags-grep/new-path dir file-1))
+                   (line-num (match-string-no-properties 7))
+                   (meta     (match-string-no-properties 6))
+                   (tag-info (etags-grep/set-info
+                              tag-file tag-str file line-num meta)))
+              (add-to-list 'tags-info tag-info t))))))
     tags-info))
 
 (defun etags-grep/file-name-cur-tag ()
