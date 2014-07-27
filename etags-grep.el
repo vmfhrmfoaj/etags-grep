@@ -47,9 +47,7 @@
                                                   tag-files
                                                   tag-regex)
   "Generate a matched tags info table"
-  (let* ((tag-template "^\\(.*%s\\(\\s-\\|\\s(\\|;\\).*\\)\^?\\(\\(.+\\)\^A\\)?\\([0-9]+\\),[0-9]+")
-         (tag-regex (format tag-template tag-regex))
-         matched-tag-infos)
+  (let (matched-tag-infos)
     (dolist (tag-file tag-files)
       (setq matched-tag-infos
             (append matched-tag-infos
@@ -59,7 +57,16 @@
     matched-tag-infos))
 
 (defun etags-grep/matched-tag-infos (tags-base-dir tag-file tag-regex)
-  (let* ((base-dir-lst   (split-string tags-base-dir "/"))
+  (let* ((tag-template  (concat
+                         "\\(\\(.+\\(\\s-\\|:\\|\\*\\)\\)?"
+                         "%s\\s-*"
+                         "\\(\\s(.*\\|;\\)?\\)\^?"))
+         (line-template (concat
+                         "^" tag-template
+                         "\\(\\(.+\\)\^A\\)?"
+                         "\\([1-9][0-9]*\\),[1-9][0-9]*$"))
+         (etag-regex    (format line-template tag-regex))
+         (base-dir-lst   (split-string tags-base-dir "/"))
          (tag-dir-lst    (split-string (file-name-directory tag-file) "/"))
          (common-dir-lst (set-difference tag-dir-lst
                                          base-dir-lst
